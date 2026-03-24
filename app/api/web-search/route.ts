@@ -5,18 +5,28 @@
  * Simple JSON request/response using Tavily search.
  */
 
+import { NextRequest } from 'next/server';
+import { callLLM } from '@/lib/ai/llm';
 import { searchWithTavily, formatSearchResultsAsContext } from '@/lib/web-search/tavily';
 import { resolveWebSearchApiKey } from '@/lib/server/provider-config';
 import { createLogger } from '@/lib/logger';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
+import { buildSearchQuery } from '@/lib/server/search-query-builder';
+import { resolveModelFromHeaders } from '@/lib/server/resolve-model';
+import type { AICallFn } from '@/lib/generation/pipeline-types';
 
 const log = createLogger('WebSearch');
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { query, apiKey: clientApiKey } = body as {
+    const {
+      query,
+      pdfText,
+      apiKey: clientApiKey,
+    } = body as {
       query?: string;
+      pdfText?: string;
       apiKey?: string;
     };
 
@@ -33,7 +43,35 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await searchWithTavily({ query: query.trim(), apiKey });
+    let aiCall: AICallFn | undefined;
+    try {
+      const { model: languageModel, modelInfo } = resolveModelFromHeaders(req);
+      aiCall = async (systemPrompt, userPrompt) => {
+        const result = await callLLM(
+          {
+            model: languageModel,
+            system: systemPrompt,
+            prompt: userPrompt,
+            maxOutputTokens: modelInfo?.outputWindow,
+          },
+          'web-search-query-rewrite',
+        );
+        return result.text;
+      };
+    } catch (error) {
+      log.warn('Search query rewrite model unavailable, falling back to raw requirement:', error);
+    }
+
+    const searchQuery = await buildSearchQuery(query, pdfText, aiCall);
+
+    log.info('Running web search API request', {
+      hasPdfContext: searchQuery.hasPdfContext,
+      rawRequirementLength: searchQuery.rawRequirementLength,
+      rewriteAttempted: searchQuery.rewriteAttempted,
+      finalQueryLength: searchQuery.finalQueryLength,
+    });
+
+    const result = await searchWithTavily({ query: searchQuery.query, apiKey });
     const context = formatSearchResultsAsContext(result);
 
     return apiSuccess({
