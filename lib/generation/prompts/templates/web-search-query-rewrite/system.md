@@ -17,8 +17,5 @@ You rewrite user requests into concise, high-signal web search queries as JSON.
 
 ## Output Format
 
-```json
-{
-  "query": "your concise web search query"
-}
-```
+Example output:
+{ "query": "your concise web search query" }

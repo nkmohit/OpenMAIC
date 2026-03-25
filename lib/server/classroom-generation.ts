@@ -204,6 +204,21 @@ export async function generateClassroom(
     return result.text;
   };
 
+  const searchQueryAiCall: AICallFn = async (systemPrompt, userPrompt, _images) => {
+    const result = await callLLM(
+      {
+        model: languageModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        maxOutputTokens: 256,
+      },
+      'web-search-query-rewrite',
+    );
+    return result.text;
+  };
+
   const lang = normalizeLanguage(input.language);
   const requirements: UserRequirements = {
     requirement,
@@ -241,7 +256,7 @@ export async function generateClassroom(
     const tavilyKey = resolveWebSearchApiKey();
     if (tavilyKey) {
       try {
-        const searchQuery = await buildSearchQuery(requirement, pdfText, aiCall);
+        const searchQuery = await buildSearchQuery(requirement, pdfText, searchQueryAiCall);
 
         log.info('Running web search for classroom generation', {
           hasPdfContext: searchQuery.hasPdfContext,

@@ -11,7 +11,10 @@ import { searchWithTavily, formatSearchResultsAsContext } from '@/lib/web-search
 import { resolveWebSearchApiKey } from '@/lib/server/provider-config';
 import { createLogger } from '@/lib/logger';
 import { apiError, apiSuccess } from '@/lib/server/api-response';
-import { buildSearchQuery } from '@/lib/server/search-query-builder';
+import {
+  buildSearchQuery,
+  SEARCH_QUERY_REWRITE_EXCERPT_LENGTH,
+} from '@/lib/server/search-query-builder';
 import { resolveModelFromHeaders } from '@/lib/server/resolve-model';
 import type { AICallFn } from '@/lib/generation/pipeline-types';
 
@@ -43,16 +46,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Clamp rewrite input at the route boundary; framework body limits still apply to total request size.
+    const boundedPdfText = pdfText?.slice(0, SEARCH_QUERY_REWRITE_EXCERPT_LENGTH);
+
     let aiCall: AICallFn | undefined;
     try {
-      const { model: languageModel, modelInfo } = resolveModelFromHeaders(req);
+      const { model: languageModel } = resolveModelFromHeaders(req);
       aiCall = async (systemPrompt, userPrompt) => {
         const result = await callLLM(
           {
             model: languageModel,
-            system: systemPrompt,
-            prompt: userPrompt,
-            maxOutputTokens: modelInfo?.outputWindow,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            maxOutputTokens: 256,
           },
           'web-search-query-rewrite',
         );
@@ -62,7 +70,7 @@ export async function POST(req: NextRequest) {
       log.warn('Search query rewrite model unavailable, falling back to raw requirement:', error);
     }
 
-    const searchQuery = await buildSearchQuery(query, pdfText, aiCall);
+    const searchQuery = await buildSearchQuery(query, boundedPdfText, aiCall);
 
     log.info('Running web search API request', {
       hasPdfContext: searchQuery.hasPdfContext,

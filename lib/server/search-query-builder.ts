@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/logger';
 
 const log = createLogger('SearchQueryBuilder');
 const TAVILY_SOFT_MAX_QUERY_LENGTH = 350;
-const SEARCH_QUERY_REWRITE_EXCERPT_LENGTH = 7000;
+export const SEARCH_QUERY_REWRITE_EXCERPT_LENGTH = 7000;
 
 interface SearchQueryRewriteResponse {
   query: string;
@@ -31,9 +31,11 @@ function normalizePdfExcerpt(pdfText?: string): string {
   return pdfText.replace(/\s+/g, ' ').trim().slice(0, SEARCH_QUERY_REWRITE_EXCERPT_LENGTH);
 }
 
-function shouldRewriteSearchQuery(requirement: string, pdfText?: string): boolean {
-  const normalizedRequirement = normalizeSearchRequirement(requirement);
-  return normalizedRequirement.length > 400 || Boolean(normalizePdfExcerpt(pdfText));
+function shouldRewriteSearchQuery(
+  normalizedRequirement: string,
+  normalizedPdfExcerpt: string,
+): boolean {
+  return normalizedRequirement.length > 400 || Boolean(normalizedPdfExcerpt);
 }
 
 export async function buildSearchQuery(

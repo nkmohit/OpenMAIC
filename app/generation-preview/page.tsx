@@ -309,10 +309,7 @@ function GenerationPreviewContent() {
           wsSettings.webSearchProvidersConfig?.[wsSettings.webSearchProviderId]?.apiKey;
         const res = await fetch('/api/web-search', {
           method: 'POST',
-          headers: {
-            ...getApiHeaders(),
-            'Content-Type': 'application/json',
-          },
+          headers: getApiHeaders(),
           body: JSON.stringify({
             query: currentSession.requirements.requirement,
             pdfText: currentSession.pdfText || undefined,
