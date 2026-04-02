@@ -21,10 +21,11 @@ import type { AICallFn } from '@/lib/generation/pipeline-types';
 const log = createLogger('WebSearch');
 
 export async function POST(req: NextRequest) {
+  let query: string | undefined;
   try {
     const body = await req.json();
     const {
-      query,
+      query: requestQuery,
       pdfText,
       apiKey: clientApiKey,
     } = body as {
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
       pdfText?: string;
       apiKey?: string;
     };
+    query = requestQuery;
 
     if (!query || !query.trim()) {
       return apiError('MISSING_REQUIRED_FIELD', 400, 'query is required');
@@ -90,7 +92,7 @@ export async function POST(req: NextRequest) {
       responseTime: result.responseTime,
     });
   } catch (err) {
-    log.error('[WebSearch] Error:', err);
+    log.error(`Web search failed [query="${query?.substring(0, 60) ?? 'unknown'}"]:`, err);
     const message = err instanceof Error ? err.message : 'Web search failed';
     return apiError('INTERNAL_ERROR', 500, message);
   }
